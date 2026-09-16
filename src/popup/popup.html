@@ -1,14 +1,52 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PageDNA</title><link rel="stylesheet" href="popup.css"></head>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PageDNA</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
 <body>
-  <header><div class="brand"><span class="mark">P</span><div><h1>PageDNA</h1><p>Semantic integrity monitor</p></div></div><button id="pauseBtn" class="iconBtn" title="Pause monitoring">Ⅱ</button></header>
+  <header class="topbar">
+    <div class="brand">
+      <span class="mark">PD</span>
+      <div><h1>PageDNA</h1><p>Digital integrity intelligence</p></div>
+    </div>
+    <button id="pauseBtn" class="iconBtn" title="Pause monitoring" aria-label="Pause monitoring">Ⅱ</button>
+  </header>
   <main>
-    <section id="statusCard" class="card"><div class="eyebrow">CURRENT PAGE</div><div id="statusTitle" class="statusTitle">Scanning…</div><div id="origin" class="origin">—</div><div id="statusSummary" class="summary">Reading the page’s security-relevant structure.</div></section>
-    <section id="scoreCard" class="card scoreGrid hidden"><div><div class="eyebrow">DNA MATCH</div><div id="match" class="bigNumber">—</div></div><div><div class="eyebrow">RISK SCORE</div><div id="score" class="bigNumber">—</div></div></section>
-    <section id="metrics" class="metricGrid hidden"><div><b id="scripts">0</b><span>Scripts</span></div><div><b id="origins">0</b><span>External origins</span></div><div><b id="frames">0</b><span>IFrames</span></div><div><b id="forms">0</b><span>Sensitive forms</span></div></section>
-    <section id="changesCard" class="card hidden"><div class="eyebrow">EVIDENCE</div><ul id="changes"></ul></section>
+    <section id="statusCard" class="hero card">
+      <div class="heroTop"><span class="eyebrow">CURRENT PAGE</span><span class="liveDot"><i></i> LIVE</span></div>
+      <div id="statusTitle" class="statusTitle">Scanning…</div>
+      <div id="origin" class="origin">—</div>
+      <div id="statusSummary" class="summary">Reading the page’s security-relevant structure.</div>
+    </section>
+
+    <section id="scoreCard" class="scorePanel card hidden">
+      <div class="scoreRing"><div class="ringInner"><strong id="score">—</strong><span>RISK</span></div></div>
+      <div class="scoreMeta"><span class="eyebrow">DNA MATCH</span><strong id="match">—</strong><span class="muted">against trusted baseline</span></div>
+    </section>
+
+    <section id="metrics" class="metricGrid hidden">
+      <div><span class="metricIcon">JS</span><b id="scripts">0</b><small>Scripts</small></div>
+      <div><span class="metricIcon">◎</span><b id="origins">0</b><small>Origins</small></div>
+      <div><span class="metricIcon">▣</span><b id="frames">0</b><small>IFrames</small></div>
+      <div><span class="metricIcon">⌁</span><b id="forms">0</b><small>Sensitive forms</small></div>
+    </section>
+
+    <section id="changesCard" class="evidence card hidden">
+      <div class="sectionHead"><div><span class="eyebrow">SECURITY EVIDENCE</span><h2>Detected changes</h2></div><span class="shield">◆</span></div>
+      <ul id="changes"></ul>
+    </section>
+
     <div id="actions" class="actions"></div>
-    <section class="footerLinks"><button id="historyBtn" class="linkBtn">View history</button><button id="optionsBtn" class="linkBtn">Settings</button></section>
+
+    <footer class="footerLinks">
+      <button id="historyBtn" class="linkBtn">◷ History</button>
+      <span class="footerBrand">PAGE INTEGRITY</span>
+      <button id="optionsBtn" class="linkBtn">⚙ Settings</button>
+    </footer>
   </main>
   <script src="popup.js"></script>
-</body></html>
+</body>
+</html>
