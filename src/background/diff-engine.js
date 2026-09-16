@@ -7,12 +7,16 @@ function setDiff(oldItems = [], newItems = []) {
 function scriptKey(x) {
   return {
     origin: x.origin || '', pathClass: x.pathClass || '', type: x.type || '', module: Boolean(x.module),
+    async: Boolean(x.async), defer: Boolean(x.defer), integrity: x.integrity || '',
     inline: Boolean(x.inline), inlineHash: x.inline ? (x.inlineHash || '') : ''
   };
 }
 function byOrigin(items = []) { return items.map(x => ({ origin: x.origin || x.actionOrigin, pathClass: x.pathClass || x.actionPathClass || '', type: x.type || '', module: Boolean(x.module) })); }
-function formKey(x) {
-  return [x.method || 'GET', x.actionOrigin || '', x.actionPathClass || '', Boolean(x.hasSensitive), ...(x.sensitiveFields || [])].join('|');
+function formIdentity(x) {
+  return JSON.stringify({ method: x.method || 'GET', fieldTypes: [...(x.fieldTypes || [])].sort(), sensitiveFields: [...(x.sensitiveFields || [])].sort(), hasSensitive: Boolean(x.hasSensitive) });
+}
+function formDestination(x) {
+  return { actionOrigin: x.actionOrigin || '', actionPathClass: x.actionPathClass || '', crossOrigin: Boolean(x.crossOrigin) };
 }
 function thresholdLevel(score, thresholds = {}) {
   const medium = Number.isFinite(Number(thresholds.medium)) ? Number(thresholds.medium) : 20;
@@ -29,15 +33,11 @@ export function diffFingerprints(baseline, current, settings = {}) {
   if (baseline.site.origin !== current.site.origin) changes.push({ code: 'BOUNDARY_CHANGE', category: 'boundary', severity: 'high', label: 'Page origin changed', oldValue: baseline.site.origin, newValue: current.site.origin, why: 'The monitored security boundary is different.' });
 
   const oldScripts = baseline.scripts || [], newScripts = current.scripts || [];
-  const oldExternalScripts = oldScripts.filter(x => !x.inline).map(scriptKey);
-  const newExternalScripts = newScripts.filter(x => !x.inline).map(scriptKey);
-  const scripts = setDiff(oldExternalScripts, newExternalScripts);
-  scripts.added.forEach(x => changes.push({ code: 'NEW_SCRIPT_ORIGIN', category: 'resource', severity: 'medium', label: 'New script resource', oldValue: 'not present', newValue: `${x.origin}${x.pathClass}`, why: 'New executable code can change page behavior.' }));
-  scripts.removed.forEach(x => changes.push({ code: 'SCRIPT_REMOVED', category: 'resource', severity: 'low', label: 'Script removed', oldValue: `${x.origin}${x.pathClass}`, newValue: 'not present', why: 'A page dependency changed.' }));
+  const scripts = setDiff(oldScripts.filter(x => !x.inline).map(scriptKey), newScripts.filter(x => !x.inline).map(scriptKey));
+  scripts.added.forEach(x => changes.push({ code: 'NEW_SCRIPT_ORIGIN', category: 'resource', severity: 'medium', label: 'New or changed script resource', oldValue: 'not present', newValue: `${x.origin}${x.pathClass}`, why: 'Executable code or its loading policy changed.' }));
+  scripts.removed.forEach(x => changes.push({ code: 'SCRIPT_REMOVED', category: 'resource', severity: 'low', label: 'Script removed or changed', oldValue: `${x.origin}${x.pathClass}`, newValue: 'not present', why: 'A page dependency or its loading policy changed.' }));
 
-  const oldInline = oldScripts.filter(x => x.inline).map(scriptKey);
-  const newInline = newScripts.filter(x => x.inline).map(scriptKey);
-  const inline = setDiff(oldInline, newInline);
+  const inline = setDiff(oldScripts.filter(x => x.inline).map(scriptKey), newScripts.filter(x => x.inline).map(scriptKey));
   inline.added.forEach(x => changes.push({ code: 'INLINE_SCRIPT_CHANGED', category: 'resource', severity: 'high', label: 'Inline script changed or added', oldValue: 'not present', newValue: `inline:${x.inlineHash || 'empty'}`, why: 'Inline executable content differs from the trusted baseline.' }));
   inline.removed.forEach(x => changes.push({ code: 'INLINE_SCRIPT_REMOVED', category: 'resource', severity: 'low', label: 'Inline script removed', oldValue: `inline:${x.inlineHash || 'empty'}`, newValue: 'not present', why: 'Inline executable content was removed.' }));
 
@@ -46,12 +46,23 @@ export function diffFingerprints(baseline, current, settings = {}) {
   frames.removed.forEach(x => changes.push({ code: 'FRAME_REMOVED', category: 'resource', severity: 'low', label: 'Iframe removed', oldValue: x.origin, newValue: 'not present', why: 'Embedded page structure changed.' }));
 
   const oldForms = baseline.structure?.forms || [], newForms = current.structure?.forms || [];
-  const oldFormMap = new Map(oldForms.map(x => [formKey(x), x]));
-  const newFormMap = new Map(newForms.map(x => [formKey(x), x]));
-  const unmatchedOld = oldForms.filter(x => !newFormMap.has(formKey(x)));
-  const unmatchedNew = newForms.filter(x => !oldFormMap.has(formKey(x)));
-  unmatchedNew.forEach(form => changes.push({ code: 'NEW_FORM', category: 'boundary', severity: form.hasSensitive ? 'high' : 'medium', label: 'New form', oldValue: 'not present', newValue: `${form.method} ${form.actionOrigin}${form.actionPathClass}`, why: 'A new submission flow appeared.' }));
-  unmatchedOld.forEach(form => changes.push({ code: 'FORM_REMOVED', category: 'boundary', severity: 'low', label: 'Form removed', oldValue: `${form.method} ${form.actionOrigin}${form.actionPathClass}`, newValue: 'not present', why: 'A submission flow was removed.' }));
+  const oldFormMap = new Map(), newFormMap = new Map();
+  for (const form of oldForms) { const key = formIdentity(form); const list = oldFormMap.get(key) || []; list.push(form); oldFormMap.set(key, list); }
+  for (const form of newForms) { const key = formIdentity(form); const list = newFormMap.get(key) || []; list.push(form); newFormMap.set(key, list); }
+  const formKeys = new Set([...oldFormMap.keys(), ...newFormMap.keys()]);
+  for (const key of formKeys) {
+    const oldList = oldFormMap.get(key) || [], newList = newFormMap.get(key) || [];
+    const pairs = Math.min(oldList.length, newList.length);
+    for (let i = 0; i < pairs; i++) {
+      const oldDestination = formDestination(oldList[i]), newDestination = formDestination(newList[i]);
+      if (keyOf(oldDestination) !== keyOf(newDestination)) {
+        const sensitive = Boolean(oldList[i].hasSensitive || newList[i].hasSensitive);
+        changes.push({ code: sensitive ? 'SENSITIVE_FLOW_CHANGED' : 'FORM_DESTINATION_CHANGED', category: sensitive ? 'sensitive-flow' : 'boundary', severity: sensitive ? 'high' : 'medium', label: sensitive ? 'Sensitive form destination changed' : 'Form destination changed', oldValue: `${oldDestination.actionOrigin}${oldDestination.actionPathClass}`, newValue: `${newDestination.actionOrigin}${newDestination.actionPathClass}`, why: sensitive ? 'A credential or payment submission flow now targets a different destination.' : 'A form submission flow now targets a different destination.' });
+      }
+    }
+    for (const form of newList.slice(pairs)) changes.push({ code: 'NEW_FORM', category: 'boundary', severity: form.hasSensitive ? 'high' : 'medium', label: 'New form', oldValue: 'not present', newValue: `${form.method} ${form.actionOrigin}${form.actionPathClass}`, why: 'A new submission flow appeared.' });
+    for (const form of oldList.slice(pairs)) changes.push({ code: 'FORM_REMOVED', category: 'boundary', severity: 'low', label: 'Form removed', oldValue: `${form.method} ${form.actionOrigin}${form.actionPathClass}`, newValue: 'not present', why: 'A submission flow was removed.' });
+  }
 
   const oldRedirects = baseline.navigation?.redirects || [], newRedirects = current.navigation?.redirects || [];
   if (keyOf(oldRedirects) !== keyOf(newRedirects) || baseline.navigation?.finalOrigin !== current.navigation?.finalOrigin) changes.push({ code: 'NAVIGATION_CHANGE', category: 'navigation', severity: 'high', label: 'Navigation destination changed', oldValue: baseline.navigation?.finalOrigin || oldRedirects.join(' → '), newValue: current.navigation?.finalOrigin || newRedirects.join(' → '), why: 'The page may be redirecting to a different origin.' });
