@@ -4,11 +4,11 @@ function setDiff(oldItems = [], newItems = []) {
   const newSet = new Set(newItems.map(keyOf));
   return { added: newItems.filter(x => !oldSet.has(keyOf(x))), removed: oldItems.filter(x => !newSet.has(keyOf(x))) };
 }
-function scriptKey(x) {
+function scriptKey(x, includeInlineHash = true) {
   return {
     origin: x.origin || '', pathClass: x.pathClass || '', type: x.type || '', module: Boolean(x.module),
     async: Boolean(x.async), defer: Boolean(x.defer), integrity: x.integrity || '',
-    inline: Boolean(x.inline), inlineHash: x.inline ? (x.inlineHash || '') : ''
+    inline: Boolean(x.inline), inlineHash: x.inline && includeInlineHash ? (x.inlineHash || '') : ''
   };
 }
 function byOrigin(items = []) { return items.map(x => ({ origin: x.origin || x.actionOrigin, pathClass: x.pathClass || x.actionPathClass || '', type: x.type || '', module: Boolean(x.module) })); }
@@ -33,13 +33,14 @@ export function diffFingerprints(baseline, current, settings = {}) {
   if (baseline.site.origin !== current.site.origin) changes.push({ code: 'BOUNDARY_CHANGE', category: 'boundary', severity: 'high', label: 'Page origin changed', oldValue: baseline.site.origin, newValue: current.site.origin, why: 'The monitored security boundary is different.' });
 
   const oldScripts = baseline.scripts || [], newScripts = current.scripts || [];
-  const scripts = setDiff(oldScripts.filter(x => !x.inline).map(scriptKey), newScripts.filter(x => !x.inline).map(scriptKey));
+  const scripts = setDiff(oldScripts.filter(x => !x.inline).map(x => scriptKey(x)), newScripts.filter(x => !x.inline).map(x => scriptKey(x)));
   scripts.added.forEach(x => changes.push({ code: 'NEW_SCRIPT_ORIGIN', category: 'resource', severity: 'medium', label: 'New or changed script resource', oldValue: 'not present', newValue: `${x.origin}${x.pathClass}`, why: 'Executable code or its loading policy changed.' }));
   scripts.removed.forEach(x => changes.push({ code: 'SCRIPT_REMOVED', category: 'resource', severity: 'low', label: 'Script removed or changed', oldValue: `${x.origin}${x.pathClass}`, newValue: 'not present', why: 'A page dependency or its loading policy changed.' }));
 
-  const inline = setDiff(oldScripts.filter(x => x.inline).map(scriptKey), newScripts.filter(x => x.inline).map(scriptKey));
-  inline.added.forEach(x => changes.push({ code: 'INLINE_SCRIPT_CHANGED', category: 'resource', severity: 'high', label: 'Inline script changed or added', oldValue: 'not present', newValue: `inline:${x.inlineHash || 'empty'}`, why: 'Inline executable content differs from the trusted baseline.' }));
-  inline.removed.forEach(x => changes.push({ code: 'INLINE_SCRIPT_REMOVED', category: 'resource', severity: 'low', label: 'Inline script removed', oldValue: `inline:${x.inlineHash || 'empty'}`, newValue: 'not present', why: 'Inline executable content was removed.' }));
+  const comparableInlineHash = baseline.hashes?.algorithm === current.hashes?.algorithm;
+  const inline = setDiff(oldScripts.filter(x => x.inline).map(x => scriptKey(x, comparableInlineHash)), newScripts.filter(x => x.inline).map(x => scriptKey(x, comparableInlineHash)));
+  inline.added.forEach(x => changes.push({ code: 'INLINE_SCRIPT_CHANGED', category: 'resource', severity: 'high', label: 'Inline script changed or added', oldValue: 'not present', newValue: `inline:${x.inlineHash || 'unverified'}`, why: 'Inline executable content differs from the trusted baseline.' }));
+  inline.removed.forEach(x => changes.push({ code: 'INLINE_SCRIPT_REMOVED', category: 'resource', severity: 'low', label: 'Inline script removed', oldValue: `inline:${x.inlineHash || 'unverified'}`, newValue: 'not present', why: 'Inline executable content was removed.' }));
 
   const frames = setDiff(byOrigin(baseline.structure?.frames), byOrigin(current.structure?.frames));
   frames.added.forEach(x => changes.push({ code: 'NEW_FRAME_ORIGIN', category: 'resource', severity: 'medium', label: 'New iframe origin', oldValue: 'not present', newValue: x.origin, why: 'Embedded content can receive data or alter the user flow.' }));
