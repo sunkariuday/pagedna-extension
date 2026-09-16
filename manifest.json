@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "PageDNA",
+  "version": "1.0.0",
+  "description": "Semantic page integrity monitoring for trusted websites.",
+  "permissions": ["storage", "notifications", "tabs"],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
+  "background": {
+    "service_worker": "src/background/service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "PageDNA",
+    "default_popup": "src/popup/popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*/*", "http://*/*", "file:///*"],
+      "js": ["src/content/canonicalizer.js", "src/content/form-analyzer.js", "src/content/frame-analyzer.js", "src/content/dom-analyzer.js", "src/content/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "src/options/options.html"
+}
