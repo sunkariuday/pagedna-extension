@@ -32,5 +32,10 @@
     for (let i = 0; i < value.length; i++) { hash ^= value.charCodeAt(i); hash = Math.imul(hash, 16777619); }
     return (hash >>> 0).toString(16).padStart(8, '0');
   }
-  self.PageDNACanonicalizer = { normalizeUrl, originOf, pathClass, stableStringify, hashString };
+  async function hashStringSha256(value) {
+    const data = new TextEncoder().encode(value);
+    const digest = await crypto.subtle.digest('SHA-256', data);
+    return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
+  }
+  self.PageDNACanonicalizer = { normalizeUrl, originOf, pathClass, stableStringify, hashString, hashStringSha256 };
 })();
