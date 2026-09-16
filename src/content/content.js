@@ -4,7 +4,7 @@
     const scan = self.PageDNADomAnalyzer.analyze();
     const nav = performance.getEntriesByType('navigation')[0];
     const fingerprint = {
-      schemaVersion: 1, capturedAt: new Date().toISOString(),
+      schemaVersion: 2, capturedAt: new Date().toISOString(),
       site: { origin: location.origin, hostname: location.hostname, protocol: location.protocol.replace(':', ''), port: location.port || (location.protocol === 'https:' ? '443' : '80') },
       identity: { protocol: location.protocol.replace(':', ''), port: location.port || '' },
       structure: { forms: scan.forms, frames: scan.frames, sensitiveNodes: scan.sensitiveNodes },
@@ -21,11 +21,38 @@
     fingerprint.hashes.volatileMasked = fingerprint.hashes.stable;
     return fingerprint;
   }
-  let scanned = false;
-  function scanAndSend() {
-    if (scanned) return; scanned = true;
-    try { chrome.runtime.sendMessage({ type: 'PD_SCAN_PAGE', fingerprint: collectFingerprint() }); } catch {}
+  let lastSentHash = '';
+  let scanTimer = null;
+  let scheduled = false;
+  function scanAndSend(force = false) {
+    scheduled = false;
+    try {
+      const fingerprint = collectFingerprint();
+      if (!force && fingerprint.hashes.stable === lastSentHash) return;
+      lastSentHash = fingerprint.hashes.stable;
+      chrome.runtime.sendMessage({ type: 'PD_SCAN_PAGE', fingerprint });
+    } catch {}
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scanAndSend, { once: true }); else scanAndSend();
-  window.addEventListener('pageshow', scanAndSend, { once: true });
+  function scheduleScan() {
+    if (scheduled) return;
+    scheduled = true;
+    clearTimeout(scanTimer);
+    scanTimer = setTimeout(() => scanAndSend(false), 350);
+  }
+  function startObservers() {
+    if (!document.documentElement) return;
+    const observer = new MutationObserver(mutations => {
+      const relevant = mutations.some(m => m.type === 'childList' || m.type === 'attributes');
+      if (relevant) scheduleScan();
+    });
+    observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['src', 'href', 'action', 'method', 'type', 'name', 'autocomplete'] });
+  }
+  function initialScan() {
+    scanAndSend(true);
+    startObservers();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialScan, { once: true }); else initialScan();
+  window.addEventListener('pageshow', () => scanAndSend(true));
+  window.addEventListener('popstate', () => scanAndSend(true));
+  window.addEventListener('hashchange', scheduleScan);
 })();
