@@ -14,7 +14,7 @@
       navigation: { redirects: nav ? [nav.name].filter(Boolean).map(C.originOf) : [], finalOrigin: location.origin },
       behavior: { downloads: [], popups: [] },
       metrics: { formCount: scan.forms.length, frameCount: scan.frames.length, scriptCount: scan.scripts.length, externalOriginCount: scan.originSet.filter(x => x !== location.origin).length, sensitiveFormCount: scan.forms.filter(f => f.hasSensitive).length },
-      hashes: { stable: '', volatileMasked: '' }
+      hashes: { algorithm: 'sha256', stable: '', volatileMasked: '' }
     };
     const stable = C.stableStringify({ ...fingerprint, capturedAt: undefined, hashes: undefined });
     fingerprint.hashes.stable = await C.hashStringSha256(stable);
