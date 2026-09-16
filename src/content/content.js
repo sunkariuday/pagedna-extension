@@ -1,10 +1,10 @@
 (() => {
   const C = self.PageDNACanonicalizer;
-  function collectFingerprint() {
-    const scan = self.PageDNADomAnalyzer.analyze();
+  async function collectFingerprint() {
+    const scan = await self.PageDNADomAnalyzer.analyze();
     const nav = performance.getEntriesByType('navigation')[0];
     const fingerprint = {
-      schemaVersion: 2, capturedAt: new Date().toISOString(),
+      schemaVersion: 3, capturedAt: new Date().toISOString(),
       site: { origin: location.origin, hostname: location.hostname, protocol: location.protocol.replace(':', ''), port: location.port || (location.protocol === 'https:' ? '443' : '80') },
       identity: { protocol: location.protocol.replace(':', ''), port: location.port || '' },
       structure: { forms: scan.forms, frames: scan.frames, sensitiveNodes: scan.sensitiveNodes },
@@ -17,17 +17,17 @@
       hashes: { stable: '', volatileMasked: '' }
     };
     const stable = C.stableStringify({ ...fingerprint, capturedAt: undefined, hashes: undefined });
-    fingerprint.hashes.stable = C.hashString(stable);
+    fingerprint.hashes.stable = await C.hashStringSha256(stable);
     fingerprint.hashes.volatileMasked = fingerprint.hashes.stable;
     return fingerprint;
   }
   let lastSentHash = '';
   let scanTimer = null;
   let scheduled = false;
-  function scanAndSend(force = false) {
+  async function scanAndSend(force = false) {
     scheduled = false;
     try {
-      const fingerprint = collectFingerprint();
+      const fingerprint = await collectFingerprint();
       if (!force && fingerprint.hashes.stable === lastSentHash) return;
       lastSentHash = fingerprint.hashes.stable;
       chrome.runtime.sendMessage({ type: 'PD_SCAN_PAGE', fingerprint });
@@ -37,7 +37,7 @@
     if (scheduled) return;
     scheduled = true;
     clearTimeout(scanTimer);
-    scanTimer = setTimeout(() => scanAndSend(false), 350);
+    scanTimer = setTimeout(() => { void scanAndSend(false); }, 350);
   }
   function startObservers() {
     if (!document.documentElement) return;
@@ -45,14 +45,14 @@
       const relevant = mutations.some(m => m.type === 'childList' || m.type === 'attributes');
       if (relevant) scheduleScan();
     });
-    observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['src', 'href', 'action', 'method', 'type', 'name', 'autocomplete'] });
+    observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['src', 'href', 'action', 'method', 'type', 'name', 'autocomplete', 'integrity'] });
   }
   function initialScan() {
-    scanAndSend(true);
+    void scanAndSend(true);
     startObservers();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialScan, { once: true }); else initialScan();
-  window.addEventListener('pageshow', () => scanAndSend(true));
-  window.addEventListener('popstate', () => scanAndSend(true));
+  window.addEventListener('pageshow', () => { void scanAndSend(true); });
+  window.addEventListener('popstate', () => { void scanAndSend(true); });
   window.addEventListener('hashchange', scheduleScan);
 })();
