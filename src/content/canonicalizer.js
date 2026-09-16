@@ -33,8 +33,9 @@
     return (hash >>> 0).toString(16).padStart(8, '0');
   }
   async function hashStringSha256(value) {
+    if (!globalThis.crypto?.subtle) return hashString(value);
     const data = new TextEncoder().encode(value);
-    const digest = await crypto.subtle.digest('SHA-256', data);
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', data);
     return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
   }
   self.PageDNACanonicalizer = { normalizeUrl, originOf, pathClass, stableStringify, hashString, hashStringSha256 };
