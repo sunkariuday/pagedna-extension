@@ -9,7 +9,7 @@ PageDNA is a Manifest V3 Chrome extension that monitors trusted pages using sema
 - Existing older baselines avoid false inline-script alerts during the hash-algorithm migration.
 - Live DOM rescanning detects dynamically added or modified scripts, forms, frames, and relevant security attributes.
 - Sensitive form destination changes are reported directly as `SENSITIVE_FLOW_CHANGED` instead of appearing only as a generic add/remove pair.
-- Script loading policy changes such as `async`, `defer`, and `integrity` changes are included in the comparison.
+- Script loading policy changes such as `async`, `defer`, and `integrity` changes are included in the comparison. Navigation changes include the final origin and redirect count available to the page.
 - Configured medium/high/critical thresholds are now passed into the diff engine and notification logic.
 - Incoming scan messages are validated and fingerprint size is bounded to reduce malformed or oversized input risk.
 - Test fixtures cover inline-script changes and configurable risk thresholds.
@@ -86,7 +86,7 @@ The fixture lab is a local file, so it needs no server:
 
 ## Test code
 
-Run `npm test` or `node tests/run-tests.js`. The suite covers URL canonicalization, script/frame/form diffs, inline-script integrity, sensitive-flow scoring, configurable thresholds, score bounding, and risk levels.
+Run `npm test` or `node tests/run-tests.js`. The suite covers URL canonicalization, script/frame/form diffs, inline-script integrity, sensitive-flow scoring, redirect-count changes, configurable thresholds, score bounding, exact service-domain matching, settings normalization, and risk levels. GitHub Actions runs the tests and JavaScript syntax checks on every push and pull request.
 
 ## Architecture
 
