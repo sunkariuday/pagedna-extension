@@ -2,6 +2,7 @@ import { STORAGE_KEY, DEFAULT_SETTINGS } from '../shared/constants.js';
 
 const emptyState = () => ({ sites: {}, history: [] });
 let stateQueue = Promise.resolve();
+let settingsQueue = Promise.resolve();
 
 async function readState() {
   const data = await chrome.storage.local.get([STORAGE_KEY]);
@@ -46,15 +47,28 @@ export function normalizeSettings(raw = {}) {
   };
 }
 
-export async function getSettings() {
+function enqueueSettings(task) {
+  const run = settingsQueue.then(task);
+  settingsQueue = run.catch(() => {});
+  return run;
+}
+
+async function readSettings() {
   const data = await chrome.storage.local.get(['pagednaSettings']);
   return normalizeSettings(data.pagednaSettings);
 }
 
-export async function saveSettings(settings) {
-  const normalized = normalizeSettings(settings);
-  await chrome.storage.local.set({ pagednaSettings: normalized });
-  return normalized;
+export async function getSettings() {
+  await settingsQueue;
+  return readSettings();
+}
+
+export function saveSettings(settings) {
+  return enqueueSettings(async () => {
+    const normalized = normalizeSettings(settings);
+    await chrome.storage.local.set({ pagednaSettings: normalized });
+    return normalized;
+  });
 }
 
 function siteRecord(state, origin) {
@@ -131,8 +145,12 @@ export async function history(limit = 50) {
   return state.history.slice(0, safeLimit);
 }
 
-export async function setPaused(paused) {
-  const settings = await getSettings();
-  settings.paused = Boolean(paused);
-  return saveSettings(settings);
+export function setPaused(paused) {
+  return enqueueSettings(async () => {
+    const settings = await readSettings();
+    settings.paused = Boolean(paused);
+    const normalized = normalizeSettings(settings);
+    await chrome.storage.local.set({ pagednaSettings: normalized });
+    return normalized;
+  });
 }
