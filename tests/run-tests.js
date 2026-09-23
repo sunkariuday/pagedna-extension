@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict';
 import { diffFingerprints } from '../src/background/diff-engine.js';
-import { base, withNewFrameAndScript, changedForm, changedInlineScript, changedInlineScriptContent } from './fixtures.js';
+import { normalizeSettings } from '../src/background/baseline-manager.js';
+import { base, withNewFrameAndScript, changedForm, changedInlineScript, changedInlineScriptContent, changedSensitivePath, changedRedirectCount } from './fixtures.js';
+
 const t = (name, fn) => { fn(); console.log(`✓ ${name}`); };
 t('clean page has no changes', () => { const r = diffFingerprints(base, base); assert.equal(r.score, 0); assert.equal(r.changes.length, 0); assert.equal(r.level, 'LOW'); });
 t('new script and iframe are explained', () => { const r = diffFingerprints(base, withNewFrameAndScript); assert.ok(r.changes.some(x => x.code === 'NEW_SCRIPT_ORIGIN')); assert.ok(r.changes.some(x => x.code === 'NEW_FRAME_ORIGIN')); assert.ok(r.score >= 20); });
-t('changed sensitive form destination is high risk', () => { const r = diffFingerprints(base, changedForm); assert.ok(r.changes.some(x => x.code === 'SENSITIVE_FLOW_CHANGED')); assert.ok(r.score >= 40); assert.ok(['HIGH','CRITICAL'].includes(r.level)); });
+t('changed sensitive form destination is high risk', () => { const r = diffFingerprints(base, changedForm); assert.ok(r.changes.some(x => x.code === 'SENSITIVE_FLOW_CHANGED')); assert.ok(r.score >= 40); assert.ok(['HIGH', 'CRITICAL'].includes(r.level)); });
 t('inline script additions and changes are detected', () => { const added = diffFingerprints(base, changedInlineScript); const changed = diffFingerprints({...base, scripts:[...base.scripts, {origin:'https://shop.example',pathClass:'inline',inline:true,inlineHash:'sha256-old'}]}, changedInlineScriptContent); assert.ok(added.changes.some(x => x.code === 'INLINE_SCRIPT_CHANGED')); assert.ok(changed.changes.some(x => x.code === 'INLINE_SCRIPT_CHANGED')); });
-t('configured risk thresholds are honored', () => { const r = diffFingerprints(base, changedForm, { thresholds: { medium: 70, high: 90, critical: 100 } }); assert.equal(r.level, 'LOW'); });
+t('configured thresholds are honored', () => { const r = diffFingerprints(base, changedSensitivePath, { thresholds: { medium: 50, high: 80, critical: 100 } }); assert.equal(r.level, 'LOW'); });
+t('redirect count changes are detected', () => { const r = diffFingerprints(base, changedRedirectCount); assert.ok(r.changes.some(x => x.code === 'NAVIGATION_CHANGE')); });
+t('lookalike service domains remain unfamiliar', () => { const current = {...base, origins:[...base.origins, {origin:'https://google.example'}]}; const r = diffFingerprints(base, current); assert.ok(r.changes.some(x => x.code === 'UNFAMILIAR_ORIGIN')); });
+t('settings thresholds are normalized safely', () => { const s = normalizeSettings({ thresholds: { medium: 80, high: 20, critical: 200 } }); assert.deepEqual(s.thresholds, { medium: 80, high: 80, critical: 100 }); });
 t('risk score is bounded', () => { const noisy = {...withNewFrameAndScript, structure:{...withNewFrameAndScript.structure,forms:Array.from({length:20},(_,i)=>({...base.structure.forms[0],index:i,actionOrigin:'https://evil.example',actionPathClass:'/collect'}))}, scripts:Array.from({length:30},(_,i)=>({origin:`https://evil${i}.example`,pathClass:'/x.js',inline:false}))}; const r = diffFingerprints(base,noisy); assert.ok(r.score >= 0 && r.score <= 100); assert.equal(r.level,'CRITICAL'); });
 console.log('All PageDNA tests passed.');

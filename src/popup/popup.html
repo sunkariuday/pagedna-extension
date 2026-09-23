@@ -8,23 +8,19 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">
-      <span class="mark">PD</span>
-      <div><h1>PageDNA</h1><p>Digital integrity intelligence</p></div>
-    </div>
-    <button id="pauseBtn" class="iconBtn" title="Pause monitoring" aria-label="Pause monitoring">Ⅱ</button>
+    <div class="brand"><span class="mark">PD</span><div><h1>PageDNA</h1><p>Page integrity intelligence</p></div></div>
+    <div class="headerActions"><span id="monitorState" class="statePill"><i></i> LIVE</span><button id="pauseBtn" class="iconBtn" title="Pause monitoring" aria-label="Pause monitoring">Ⅱ</button></div>
   </header>
   <main>
     <section id="statusCard" class="hero card">
-      <div class="heroTop"><span class="eyebrow">CURRENT PAGE</span><span class="liveDot"><i></i> LIVE</span></div>
-      <div id="statusTitle" class="statusTitle">Scanning…</div>
-      <div id="origin" class="origin">—</div>
-      <div id="statusSummary" class="summary">Reading the page’s security-relevant structure.</div>
+      <div class="heroTop"><span class="eyebrow">CURRENT PAGE</span><span id="statusBadge" class="statusBadge">SCANNING</span></div>
+      <div id="statusTitle" class="statusTitle">Scanning…</div><div id="origin" class="origin">—</div>
+      <div id="statusSummary" class="summary">Reading security-relevant page structure.</div>
     </section>
 
     <section id="scoreCard" class="scorePanel card hidden">
-      <div class="scoreRing"><div class="ringInner"><strong id="score">—</strong><span>RISK</span></div></div>
-      <div class="scoreMeta"><span class="eyebrow">DNA MATCH</span><strong id="match">—</strong><span class="muted">against trusted baseline</span></div>
+      <div class="scoreRing" id="scoreRing"><div class="ringInner"><strong id="score">—</strong><span>RISK</span></div></div>
+      <div class="scoreMeta"><span class="eyebrow">INTEGRITY</span><strong id="match">—</strong><span class="muted">semantic match to trusted baseline</span><div id="riskLabel" class="riskLabel">—</div></div>
     </section>
 
     <section id="metrics" class="metricGrid hidden">
@@ -35,17 +31,14 @@
     </section>
 
     <section id="changesCard" class="evidence card hidden">
-      <div class="sectionHead"><div><span class="eyebrow">SECURITY EVIDENCE</span><h2>Detected changes</h2></div><span class="shield">◆</span></div>
+      <div class="sectionHead"><div><span class="eyebrow">SECURITY EVIDENCE</span><h2>What changed</h2></div><span id="evidenceCount" class="countPill">0</span></div>
       <ul id="changes"></ul>
     </section>
 
+    <section id="nextStep" class="nextStep card hidden"><span class="nextIcon">✦</span><div><b id="nextTitle">Next step</b><p id="nextText">—</p></div></section>
     <div id="actions" class="actions"></div>
 
-    <footer class="footerLinks">
-      <button id="historyBtn" class="linkBtn">◷ History</button>
-      <span class="footerBrand">PAGE INTEGRITY</span>
-      <button id="optionsBtn" class="linkBtn">⚙ Settings</button>
-    </footer>
+    <footer class="footerLinks"><button id="historyBtn" class="linkBtn">◷ History</button><span class="footerBrand">PAGE INTEGRITY</span><button id="optionsBtn" class="linkBtn">⚙ Settings</button></footer>
   </main>
   <script src="popup.js"></script>
 </body>

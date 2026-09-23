@@ -1,4 +1,12 @@
+const KNOWN_SERVICE_HOSTS = new Set(['google.com', 'google-analytics.com', 'doubleclick.net', 'facebook.com', 'sentry.io', 'cloudflare.com', 'jsdelivr.net', 'unpkg.com', 'cdnjs.com']);
+
 function keyOf(item) { return JSON.stringify(item); }
+function isKnownServiceOrigin(origin) {
+  try {
+    const hostname = new URL(origin).hostname.toLowerCase();
+    return [...KNOWN_SERVICE_HOSTS].some(host => hostname === host || hostname.endsWith(`.${host}`));
+  } catch { return false; }
+}
 function setDiff(oldItems = [], newItems = []) {
   const oldSet = new Set(oldItems.map(keyOf));
   const newSet = new Set(newItems.map(keyOf));
@@ -66,9 +74,9 @@ export function diffFingerprints(baseline, current, settings = {}) {
   }
 
   const oldRedirects = baseline.navigation?.redirects || [], newRedirects = current.navigation?.redirects || [];
-  if (keyOf(oldRedirects) !== keyOf(newRedirects) || baseline.navigation?.finalOrigin !== current.navigation?.finalOrigin) changes.push({ code: 'NAVIGATION_CHANGE', category: 'navigation', severity: 'high', label: 'Navigation destination changed', oldValue: baseline.navigation?.finalOrigin || oldRedirects.join(' → '), newValue: current.navigation?.finalOrigin || newRedirects.join(' → '), why: 'The page may be redirecting to a different origin.' });
+  if (keyOf(oldRedirects) !== keyOf(newRedirects) || baseline.navigation?.redirectCount !== current.navigation?.redirectCount || baseline.navigation?.finalOrigin !== current.navigation?.finalOrigin) changes.push({ code: 'NAVIGATION_CHANGE', category: 'navigation', severity: 'high', label: 'Navigation destination changed', oldValue: baseline.navigation?.finalOrigin || oldRedirects.join(' â†’ '), newValue: current.navigation?.finalOrigin || newRedirects.join(' â†’ '), why: 'The page may be redirecting to a different origin or redirect count.' });
   const oldOrigins = new Set((baseline.origins || []).map(x => x.origin)), newOrigins = new Set((current.origins || []).map(x => x.origin));
-  const unfamiliar = [...newOrigins].filter(x => !oldOrigins.has(x) && x !== current.site.origin && !/google|doubleclick|analytics|facebook|sentry|cloudflare|jsdelivr|unpkg|cdnjs/i.test(x));
+  const unfamiliar = [...newOrigins].filter(x => !oldOrigins.has(x) && x !== current.site.origin && !isKnownServiceOrigin(x));
   unfamiliar.forEach(origin => changes.push({ code: 'UNFAMILIAR_ORIGIN', category: 'boundary', severity: 'medium', label: 'Unfamiliar external origin', oldValue: 'not present', newValue: origin, why: 'A new third-party boundary was introduced.' }));
 
   const counts = {
