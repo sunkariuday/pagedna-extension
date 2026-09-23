@@ -23,6 +23,9 @@
   }
   let lastSentHash = '';
   let scanTimer = null;
+  let retryTimer = null;
+  let retryHash = '';
+  let retryCount = 0;
   let scheduled = false;
   let scanInFlight = false;
   let rerunRequested = false;
@@ -32,15 +35,33 @@
     scanInFlight = true;
     try {
       const fingerprint = await collectFingerprint();
-      if (!force && fingerprint.hashes.stable === lastSentHash) return;
-      lastSentHash = fingerprint.hashes.stable;
-      chrome.runtime.sendMessage({ type: 'PD_SCAN_PAGE', fingerprint });
+      const fingerprintHash = fingerprint.hashes.stable;
+      if (!force && fingerprintHash === lastSentHash) return;
+      let response;
+      try {
+        response = await chrome.runtime.sendMessage({ type: 'PD_SCAN_PAGE', fingerprint });
+      } catch {}
+      if (response?.ok !== true) {
+        if (retryHash === fingerprintHash) retryCount += 1;
+        else { retryHash = fingerprintHash; retryCount = 1; }
+        if (retryCount <= 3) scheduleDeliveryRetry();
+        return;
+      }
+      lastSentHash = fingerprintHash;
+      retryHash = '';
+      retryCount = 0;
+      if (retryTimer !== null) { clearTimeout(retryTimer); retryTimer = null; }
     } catch {}
     finally {
       scanInFlight = false;
       if (rerunRequested) { rerunRequested = false; scheduleScan(); }
     }
   }
+  function scheduleDeliveryRetry() {
+    if (retryTimer !== null) return;
+    retryTimer = setTimeout(() => { retryTimer = null; void scanAndSend(true); }, 1000);
+  }
+
   function scheduleScan() {
     if (scheduled) return;
     scheduled = true;
