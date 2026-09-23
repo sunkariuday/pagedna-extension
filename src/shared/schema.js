@@ -8,7 +8,7 @@ export function emptyFingerprint() {
     scripts: [],
     origins: [],
     flows: [],
-    navigation: { redirects: [], finalOrigin: '' },
+    navigation: { redirects: [], redirectCount: 0, finalOrigin: '' },
     behavior: { downloads: [], popups: [] },
     metrics: { formCount: 0, frameCount: 0, scriptCount: 0, externalOriginCount: 0, sensitiveFormCount: 0 },
     hashes: { stable: '', volatileMasked: '' }
