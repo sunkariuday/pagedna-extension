@@ -3,22 +3,50 @@
   "name": "PageDNA",
   "version": "1.1.0",
   "description": "Semantic page integrity monitoring for trusted websites.",
-  "permissions": ["storage", "notifications", "tabs"],
-  "optional_host_permissions": ["https://*/*", "http://*/*"],
+  "permissions": [
+    "storage",
+    "notifications",
+    "tabs"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
   "background": {
     "service_worker": "src/background/service-worker.js",
     "type": "module"
   },
   "action": {
     "default_title": "PageDNA",
-    "default_popup": "src/popup/popup.html"
+    "default_popup": "src/popup/popup.html",
+    "default_icon": {
+      "16": "assets/icon16.png",
+      "32": "assets/icon32.png",
+      "48": "assets/icon48.png"
+    }
   },
   "content_scripts": [
     {
-      "matches": ["https://*/*", "http://*/*", "file:///*"],
-      "js": ["src/content/canonicalizer.js", "src/content/form-analyzer.js", "src/content/frame-analyzer.js", "src/content/dom-analyzer.js", "src/content/content.js"],
+      "matches": [
+        "https://*/*",
+        "http://*/*",
+        "file:///*"
+      ],
+      "js": [
+        "src/content/canonicalizer.js",
+        "src/content/form-analyzer.js",
+        "src/content/frame-analyzer.js",
+        "src/content/dom-analyzer.js",
+        "src/content/content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
-  "options_page": "src/options/options.html"
+  "options_page": "src/options/options.html",
+  "icons": {
+    "16": "assets/icon16.png",
+    "32": "assets/icon32.png",
+    "48": "assets/icon48.png",
+    "128": "assets/icon128.png"
+  }
 }
