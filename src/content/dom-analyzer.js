@@ -1,8 +1,12 @@
 (() => {
   const C = self.PageDNACanonicalizer;
+  const KNOWN_SERVICE_HOSTS = new Set(['google.com', 'google-analytics.com', 'doubleclick.net', 'facebook.com', 'sentry.io', 'cloudflare.com', 'jsdelivr.net', 'unpkg.com', 'cdnjs.com']);
   function roleForOrigin(origin) {
     if (!origin || origin === location.origin) return 'first-party';
-    if (/google|doubleclick|analytics|facebook|sentry|cloudflare|jsdelivr|unpkg|cdnjs/i.test(origin)) return 'known-service';
+    try {
+      const hostname = new URL(origin).hostname.toLowerCase();
+      if ([...KNOWN_SERVICE_HOSTS].some(host => hostname === host || hostname.endsWith(`.${host}`))) return 'known-service';
+    } catch {}
     return 'external';
   }
   async function analyzeScripts() {
