@@ -71,18 +71,23 @@ After pulling the latest repository changes, open `chrome://extensions` and clic
 
 ## Test fixture lab
 
-The fixture lab is a local file, so it needs no server:
+The fixture lab supports both a local file workflow and a localhost workflow. The localhost workflow is recommended when testing navigation or redirect behavior; the file workflow is convenient for quick checks.
+
+### Local file workflow
 
 1. On PageDNA's card in `chrome://extensions`, click **Details** and enable **Allow access to file URLs**.
 2. Open `test-harness/example-site.html` directly in Chrome (drag it into a Chrome window, or `Ctrl+O`).
 3. Create a baseline for it, then click one fixture control at a time — each one flips a setting and reloads automatically. Click **Reset all fixtures** to return to the clean baseline between tests.
 
-| Fixture | Expected result |
-|---|---|
-| Toggle harmless styling | Still TRUSTED — no alert |
-| Add new iframe | CHANGES DETECTED, medium risk |
-| Add new script | CHANGES DETECTED, medium risk |
-| Change login destination | CHANGES DETECTED, high/critical risk |
+### Localhost workflow
+
+From the repository root, run:
+
+```bash
+python -m http.server 8080 --directory test-harness
+```
+
+Then open `http://localhost:8080/example-site.html`, create a baseline, and run the same fixture controls. See [the fixture-lab README](test-harness/README.md) for the short version.
 
 ## Test code
 
