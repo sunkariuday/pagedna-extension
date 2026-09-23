@@ -2,7 +2,7 @@ const $=id=>document.getElementById(id);let tabId,state;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function send(type,payload={}){return chrome.runtime.sendMessage({type,...payload})}
 function setStatus(title,tone,summary,badge){$('statusTitle').textContent=title;$('statusTitle').className='statusTitle '+(tone||'');$('statusSummary').textContent=summary;$('statusBadge').textContent=badge||title;$('statusBadge').className='statusBadge '+(tone||'')}
-function setRing(score,level){const deg=Math.max(0,Math.min(100,Number(score)||0))*3.6;$('scoreRing').style.background=`conic-gradient(var(--gold) 0deg,var(--gold) ${deg}deg,rgba(255,255,255,.065) ${deg}deg)`;$('riskLabel').textContent=level?level+' RISK':'NO RISK';$('riskLabel').className=(level||'').toLowerCase()}
+function setRing(score,level){const deg=Math.max(0,Math.min(100,Number(score)||0))*3.6;$('scoreRing').style.background=`conic-gradient(var(--gold) 0deg,var(--gold) ${deg}deg,rgba(255,255,255,.065) ${deg}deg)`;$('riskLabel').textContent=level?level+' RISK':'NO RISK';$('riskLabel').className=`riskLabel ${(level||'').toLowerCase()}`}
 function render(s){state=s;const fp=s?.fingerprint,result=s?.result||{},level=String(result.level||'').toLowerCase();$('origin').textContent=fp?.site?.origin||'This page cannot be monitored';
 if(s?.status==='PAUSED')setStatus('MONITORING PAUSED','paused','Resume monitoring to compare this page with its baseline.','PAUSED');
 else if(s?.status==='UNMONITORED')setStatus('NOT MONITORED','warning','Create a baseline to begin semantic change detection.','SETUP');
