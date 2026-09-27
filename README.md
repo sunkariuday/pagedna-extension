@@ -93,6 +93,10 @@ Then open `http://localhost:8080/example-site.html`, create a baseline, and run 
 
 Run `npm test` or `node tests/run-tests.js`. The suite covers URL canonicalization, script/frame/form diffs, inline-script integrity, sensitive-flow scoring, redirect-count changes, configurable thresholds, score bounding, exact service-domain matching, settings normalization, and risk levels. GitHub Actions runs the tests and JavaScript syntax checks on every push and pull request.
 
+## Release-quality checks
+
+Run `npm test` to validate version alignment, packaged PNG icon declarations, sender-origin binding, settings-write serialization, semantic diff behavior, configurable thresholds, and bounded risk scoring. The CI workflow also runs JavaScript syntax checks. The fixture lab remains the recommended manual browser check for baseline creation, harmless changes, dynamic iframe/script changes, and sensitive form destination changes.
+
 ## Architecture
 
 ```
