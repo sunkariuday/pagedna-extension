@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { isFingerprintForOrigin } from '../src/shared/schema.js';
 import { diffFingerprints } from '../src/background/diff-engine.js';
-import { normalizeSettings } from '../src/background/baseline-manager.js';
+import { normalizeSettings, saveSettings, getSettings } from '../src/background/baseline-manager.js';
 import { base, withNewFrameAndScript, changedForm, changedInlineScript, changedInlineScriptContent, changedSensitivePath, changedRedirectCount } from './fixtures.js';
 
 const t = (name, fn) => { fn(); console.log(`✓ ${name}`); };
@@ -33,6 +33,19 @@ t('inline script additions and changes are detected', () => { const added = diff
 t('configured thresholds are honored', () => { const r = diffFingerprints(base, changedSensitivePath, { thresholds: { medium: 50, high: 80, critical: 100 } }); assert.equal(r.level, 'LOW'); });
 t('redirect count changes are detected', () => { const r = diffFingerprints(base, changedRedirectCount); assert.ok(r.changes.some(x => x.code === 'NAVIGATION_CHANGE')); });
 t('lookalike service domains remain unfamiliar', () => { const current = {...base, origins:[...base.origins, {origin:'https://google.example'}]}; const r = diffFingerprints(base, current); assert.ok(r.changes.some(x => x.code === 'UNFAMILIAR_ORIGIN')); });
+t('concurrent settings writes preserve the final complete update', async () => {
+  const memory = {};
+  globalThis.chrome = { storage: { local: {
+    async get() { await new Promise(resolve => setTimeout(resolve, 2)); return { pagednaSettings: memory.pagednaSettings }; },
+    async set(value) { await new Promise(resolve => setTimeout(resolve, 2)); Object.assign(memory, value); }
+  } } };
+  await Promise.all([
+    saveSettings({ thresholds: { medium: 10, high: 20, critical: 30 } }),
+    saveSettings({ thresholds: { medium: 40, high: 50, critical: 60 } })
+  ]);
+  assert.deepEqual((await getSettings()).thresholds, { medium: 40, high: 50, critical: 60 });
+});
+
 t('settings thresholds are normalized safely', () => { const s = normalizeSettings({ thresholds: { medium: 80, high: 20, critical: 200 } }); assert.deepEqual(s.thresholds, { medium: 80, high: 80, critical: 100 }); });
 t('risk score is bounded', () => { const noisy = {...withNewFrameAndScript, structure:{...withNewFrameAndScript.structure,forms:Array.from({length:20},(_,i)=>({...base.structure.forms[0],index:i,actionOrigin:'https://evil.example',actionPathClass:'/collect'}))}, scripts:Array.from({length:30},(_,i)=>({origin:`https://evil${i}.example`,pathClass:'/x.js',inline:false}))}; const r = diffFingerprints(base,noisy); assert.ok(r.score >= 0 && r.score <= 100); assert.equal(r.level,'CRITICAL'); });
 console.log('All PageDNA tests passed.');
