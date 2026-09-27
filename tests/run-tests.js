@@ -29,10 +29,12 @@ t('scan fingerprints must belong to the sender origin', () => {
 
 t('duplicate scans reuse only the current policy result', () => {
   const settings = { thresholds: { medium: 20, high: 50, critical: 80 }, mediumNotifications: true, highNotifications: true, criticalNotifications: true };
-  const site = { lastFingerprint: base, lastResult: { policyKey: scanPolicyKey(settings, true) } };
-  assert.equal(canReuseScan(site, base.hashes.stable, scanPolicyKey(settings, true)), true);
-  assert.equal(canReuseScan(site, base.hashes.stable, scanPolicyKey({ ...settings, thresholds: { medium: 50, high: 80, critical: 100 } }, true)), false);
-  assert.equal(canReuseScan(site, base.hashes.stable, scanPolicyKey(settings, false)), false);
+  const fingerprintHash = 'fixture-stable-hash';
+  const fingerprint = { ...base, hashes: { stable: fingerprintHash } };
+  const site = { lastFingerprint: fingerprint, lastResult: { policyKey: scanPolicyKey(settings, true) } };
+  assert.equal(canReuseScan(site, fingerprintHash, scanPolicyKey(settings, true)), true);
+  assert.equal(canReuseScan(site, fingerprintHash, scanPolicyKey({ ...settings, thresholds: { medium: 50, high: 80, critical: 100 } }, true)), false);
+  assert.equal(canReuseScan(site, fingerprintHash, scanPolicyKey(settings, false)), false);
 });
 
 t('clean page has no changes', () => { const r = diffFingerprints(base, base); assert.equal(r.score, 0); assert.equal(r.changes.length, 0); assert.equal(r.level, 'LOW'); });
