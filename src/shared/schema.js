@@ -22,3 +22,12 @@ export function isFingerprint(value) {
 export function siteKeyFromFingerprint(fingerprint) {
   return fingerprint?.site?.origin || '';
 }
+
+export function isFingerprintForOrigin(value, expectedOrigin) {
+  if (!isFingerprint(value) || typeof expectedOrigin !== 'string' || !expectedOrigin) return false;
+  try {
+    const expected = new URL(expectedOrigin);
+    const actual = new URL(value.site.origin);
+    return actual.toString() === expected.toString();
+  } catch { return false; }
+}
