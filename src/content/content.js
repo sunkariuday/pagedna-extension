@@ -44,7 +44,7 @@
       if (response?.ok !== true) {
         if (retryHash === fingerprintHash) retryCount += 1;
         else { retryHash = fingerprintHash; retryCount = 1; }
-        if (retryCount <= 3) scheduleDeliveryRetry();
+        if (retryCount <= 5) scheduleDeliveryRetry();
         return;
       }
       lastSentHash = fingerprintHash;
@@ -59,7 +59,8 @@
   }
   function scheduleDeliveryRetry() {
     if (retryTimer !== null) return;
-    retryTimer = setTimeout(() => { retryTimer = null; void scanAndSend(true); }, 1000);
+    const delay = Math.min(30000, 500 * (2 ** Math.max(0, retryCount - 1)));
+    retryTimer = setTimeout(() => { retryTimer = null; void scanAndSend(true); }, delay);
   }
 
   function scheduleScan() {

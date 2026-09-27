@@ -1,9 +1,42 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { isFingerprintForOrigin } from '../src/shared/schema.js';
 import { diffFingerprints } from '../src/background/diff-engine.js';
-import { normalizeSettings } from '../src/background/baseline-manager.js';
+import { normalizeSettings, saveSettings, getSettings } from '../src/background/baseline-manager.js';
 import { base, withNewFrameAndScript, changedForm, changedInlineScript, changedInlineScriptContent, changedSensitivePath, changedRedirectCount } from './fixtures.js';
+import { canReuseScan, scanPolicyKey } from '../src/background/scan-policy.js';
 
 const t = (name, fn) => { fn(); console.log(`✓ ${name}`); };
+
+t('manifest and package versions align', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'manifest.json'), 'utf8'));
+  const packageJson = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'));
+  assert.equal(manifest.version, packageJson.version);
+  assert.equal(manifest.version, '1.1.1');
+});
+
+t('manifest icon declarations point to packaged PNG assets', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'manifest.json'), 'utf8'));
+  for (const iconPath of Object.values(manifest.icons)) assert.ok(fs.existsSync(path.join(process.cwd(), iconPath)));
+  for (const iconPath of Object.values(manifest.action.default_icon)) assert.ok(fs.existsSync(path.join(process.cwd(), iconPath)));
+});
+
+t('scan fingerprints must belong to the sender origin', () => {
+  assert.equal(isFingerprintForOrigin(base, 'https://shop.example'), true);
+  assert.equal(isFingerprintForOrigin(base, 'https://evil.example'), false);
+});
+
+t('duplicate scans reuse only the current policy result', () => {
+  const settings = { thresholds: { medium: 20, high: 50, critical: 80 }, mediumNotifications: true, highNotifications: true, criticalNotifications: true };
+  const fingerprintHash = 'fixture-stable-hash';
+  const fingerprint = { ...base, hashes: { stable: fingerprintHash } };
+  const site = { lastFingerprint: fingerprint, lastResult: { policyKey: scanPolicyKey(settings, true) } };
+  assert.equal(canReuseScan(site, fingerprintHash, scanPolicyKey(settings, true)), true);
+  assert.equal(canReuseScan(site, fingerprintHash, scanPolicyKey({ ...settings, thresholds: { medium: 50, high: 80, critical: 100 } }, true)), false);
+  assert.equal(canReuseScan(site, fingerprintHash, scanPolicyKey(settings, false)), false);
+});
+
 t('clean page has no changes', () => { const r = diffFingerprints(base, base); assert.equal(r.score, 0); assert.equal(r.changes.length, 0); assert.equal(r.level, 'LOW'); });
 t('new script and iframe are explained', () => { const r = diffFingerprints(base, withNewFrameAndScript); assert.ok(r.changes.some(x => x.code === 'NEW_SCRIPT_ORIGIN')); assert.ok(r.changes.some(x => x.code === 'NEW_FRAME_ORIGIN')); assert.ok(r.score >= 20); });
 t('changed sensitive form destination is high risk', () => { const r = diffFingerprints(base, changedForm); assert.ok(r.changes.some(x => x.code === 'SENSITIVE_FLOW_CHANGED')); assert.ok(r.score >= 40); assert.ok(['HIGH', 'CRITICAL'].includes(r.level)); });
@@ -11,6 +44,20 @@ t('inline script additions and changes are detected', () => { const added = diff
 t('configured thresholds are honored', () => { const r = diffFingerprints(base, changedSensitivePath, { thresholds: { medium: 50, high: 80, critical: 100 } }); assert.equal(r.level, 'LOW'); });
 t('redirect count changes are detected', () => { const r = diffFingerprints(base, changedRedirectCount); assert.ok(r.changes.some(x => x.code === 'NAVIGATION_CHANGE')); });
 t('lookalike service domains remain unfamiliar', () => { const current = {...base, origins:[...base.origins, {origin:'https://google.example'}]}; const r = diffFingerprints(base, current); assert.ok(r.changes.some(x => x.code === 'UNFAMILIAR_ORIGIN')); });
+await (async () => {
+  const memory = {};
+  globalThis.chrome = { storage: { local: {
+    async get() { await new Promise(resolve => setTimeout(resolve, 2)); return { pagednaSettings: memory.pagednaSettings }; },
+    async set(value) { await new Promise(resolve => setTimeout(resolve, 2)); Object.assign(memory, value); }
+  } } };
+  await Promise.all([
+    saveSettings({ thresholds: { medium: 10, high: 20, critical: 30 } }),
+    saveSettings({ thresholds: { medium: 40, high: 50, critical: 60 } })
+  ]);
+  assert.deepEqual((await getSettings()).thresholds, { medium: 40, high: 50, critical: 60 });
+  console.log('✓ concurrent settings writes preserve the final complete update');
+})();
+
 t('settings thresholds are normalized safely', () => { const s = normalizeSettings({ thresholds: { medium: 80, high: 20, critical: 200 } }); assert.deepEqual(s.thresholds, { medium: 80, high: 80, critical: 100 }); });
 t('risk score is bounded', () => { const noisy = {...withNewFrameAndScript, structure:{...withNewFrameAndScript.structure,forms:Array.from({length:20},(_,i)=>({...base.structure.forms[0],index:i,actionOrigin:'https://evil.example',actionPathClass:'/collect'}))}, scripts:Array.from({length:30},(_,i)=>({origin:`https://evil${i}.example`,pathClass:'/x.js',inline:false}))}; const r = diffFingerprints(base,noisy); assert.ok(r.score >= 0 && r.score <= 100); assert.equal(r.level,'CRITICAL'); });
 console.log('All PageDNA tests passed.');
