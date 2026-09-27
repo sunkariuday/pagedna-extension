@@ -3,6 +3,7 @@ import { isFingerprintForOrigin } from '../shared/schema.js';
 import { diffFingerprints } from './diff-engine.js';
 import { getSite, getSettings, createBaseline, recordScan, trustChange, ignoreOnce, history, setPaused, saveSettings } from './baseline-manager.js';
 import { notifyRisk } from './notifications.js';
+import { canReuseScan, scanPolicyKey } from './scan-policy.js';
 
 const tabStates = new Map();
 const MAX_FINGERPRINT_BYTES = 1024 * 1024;
@@ -43,7 +44,9 @@ async function scan(tabId, fingerprint) {
   if (!validFingerprint(fingerprint)) return { status: 'INVALID_SCAN', fingerprint: null, result: { score: 0, level: 'LOW', changes: [], matchPercent: 0 } };
   const site = await getSite(fingerprint.site.origin);
   const fingerprintHash = fingerprint.hashes?.stable || '';
-  if (fingerprintHash && site.lastFingerprint?.hashes?.stable === fingerprintHash && site.lastResult) {
+  const ignored = site.ignoredUntil > Date.now();
+  const currentPolicyKey = scanPolicyKey(settings, ignored);
+  if (canReuseScan(site, fingerprintHash, currentPolicyKey)) {
     const state = { status: site.lastResult.status || (site.lastResult.changes?.length ? 'CHANGES_DETECTED' : 'TRUSTED'), fingerprint, baseline: site.versions.find(v => v.version === site.currentVersion), result: site.lastResult };
     tabStates.set(tabId, state);
     return state;
@@ -57,8 +60,7 @@ async function scan(tabId, fingerprint) {
   }
   const baseline = site.versions.find(v => v.version === site.currentVersion) || site.versions[site.versions.length - 1];
   const result = diffFingerprints(baseline.fingerprint, fingerprint, settings);
-  const ignored = site.ignoredUntil > Date.now() && result.changes.length > 0;
-  const state = { status: ignored ? 'IGNORED' : (result.changes.length ? 'CHANGES_DETECTED' : 'TRUSTED'), fingerprint, baseline, result: { ...result, status: ignored ? 'IGNORED' : result.status } };
+  const state = { status: ignored ? 'IGNORED' : (result.changes.length ? 'CHANGES_DETECTED' : 'TRUSTED'), fingerprint, baseline, result: { ...result, status: ignored && result.changes.length ? 'IGNORED' : result.status, policyKey: currentPolicyKey } };
   await recordScan(fingerprint, state.result);
   tabStates.set(tabId, state);
   const notifyThreshold = Math.max(0, Number(settings.thresholds?.medium) || 20);
