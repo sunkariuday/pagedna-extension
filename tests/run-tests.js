@@ -1,9 +1,31 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { isFingerprintForOrigin } from '../src/shared/schema.js';
 import { diffFingerprints } from '../src/background/diff-engine.js';
 import { normalizeSettings } from '../src/background/baseline-manager.js';
 import { base, withNewFrameAndScript, changedForm, changedInlineScript, changedInlineScriptContent, changedSensitivePath, changedRedirectCount } from './fixtures.js';
 
 const t = (name, fn) => { fn(); console.log(`✓ ${name}`); };
+
+t('manifest and package versions align', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'manifest.json'), 'utf8'));
+  const packageJson = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'));
+  assert.equal(manifest.version, packageJson.version);
+  assert.equal(manifest.version, '1.1.0');
+});
+
+t('manifest icon declarations point to packaged PNG assets', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'manifest.json'), 'utf8'));
+  for (const iconPath of Object.values(manifest.icons)) assert.ok(fs.existsSync(path.join(process.cwd(), iconPath)));
+  for (const iconPath of Object.values(manifest.action.default_icon)) assert.ok(fs.existsSync(path.join(process.cwd(), iconPath)));
+});
+
+t('scan fingerprints must belong to the sender origin', () => {
+  assert.equal(isFingerprintForOrigin(base, 'https://shop.example'), true);
+  assert.equal(isFingerprintForOrigin(base, 'https://evil.example'), false);
+});
+
 t('clean page has no changes', () => { const r = diffFingerprints(base, base); assert.equal(r.score, 0); assert.equal(r.changes.length, 0); assert.equal(r.level, 'LOW'); });
 t('new script and iframe are explained', () => { const r = diffFingerprints(base, withNewFrameAndScript); assert.ok(r.changes.some(x => x.code === 'NEW_SCRIPT_ORIGIN')); assert.ok(r.changes.some(x => x.code === 'NEW_FRAME_ORIGIN')); assert.ok(r.score >= 20); });
 t('changed sensitive form destination is high risk', () => { const r = diffFingerprints(base, changedForm); assert.ok(r.changes.some(x => x.code === 'SENSITIVE_FLOW_CHANGED')); assert.ok(r.score >= 40); assert.ok(['HIGH', 'CRITICAL'].includes(r.level)); });
