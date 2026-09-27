@@ -1,4 +1,5 @@
 import { MESSAGE } from '../shared/constants.js';
+import { isFingerprintForOrigin } from '../shared/schema.js';
 import { diffFingerprints } from './diff-engine.js';
 import { getSite, getSettings, createBaseline, recordScan, trustChange, ignoreOnce, history, setPaused, saveSettings } from './baseline-manager.js';
 import { notifyRisk } from './notifications.js';
@@ -41,6 +42,12 @@ async function scan(tabId, fingerprint) {
   }
   if (!validFingerprint(fingerprint)) return { status: 'INVALID_SCAN', fingerprint: null, result: { score: 0, level: 'LOW', changes: [], matchPercent: 0 } };
   const site = await getSite(fingerprint.site.origin);
+  const fingerprintHash = fingerprint.hashes?.stable || '';
+  if (fingerprintHash && site.lastFingerprint?.hashes?.stable === fingerprintHash && site.lastResult) {
+    const state = { status: site.lastResult.status || (site.lastResult.changes?.length ? 'CHANGES_DETECTED' : 'TRUSTED'), fingerprint, baseline: site.versions.find(v => v.version === site.currentVersion), result: site.lastResult };
+    tabStates.set(tabId, state);
+    return state;
+  }
   if (!site.versions.length) {
     const result = { score: 0, level: 'LOW', changes: [], matchPercent: 0, status: 'UNMONITORED' };
     await recordScan(fingerprint, result);
@@ -83,8 +90,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const senderTabId = sender.tab?.id;
     const requestedTabId = message.tabId ?? senderTabId;
     switch (message.type) {
-      case MESSAGE.SCAN:
-        return senderTabId == null ? { ok: false, error: 'Scan must originate from a tab' } : { ok: true, state: await scan(senderTabId, message.fingerprint) };
+      case MESSAGE.SCAN: {
+        if (senderTabId == null || !message.fingerprint) return { ok: false, error: 'Scan must originate from a tab' };
+        let senderOrigin = '';
+        try { senderOrigin = siteKeyFromUrl(sender.tab?.url || ''); } catch { return { ok: false, error: 'Invalid sender page' }; }
+        if (!isFingerprintForOrigin(message.fingerprint, senderOrigin)) return { ok: false, error: 'Fingerprint origin does not match sender tab' };
+        return { ok: true, state: await scan(senderTabId, message.fingerprint) };
+      }
       case MESSAGE.GET_TAB_STATE:
         return { ok: true, state: await stateForTab(requestedTabId) };
       case MESSAGE.CREATE_BASELINE: {
